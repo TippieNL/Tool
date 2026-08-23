@@ -61,7 +61,7 @@ public sealed class TemperatureProvider : IMetricProvider
     {
         foreach (var sensor in hardware.Sensors)
         {
-            if (sensor.SensorType != SensorType.Temperature)
+            if (sensor.SensorType != SensorType.Temperature || SensorNaming.IsThresholdSensor(sensor.Name))
             {
                 continue;
             }

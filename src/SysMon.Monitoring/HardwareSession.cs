@@ -2,6 +2,7 @@ using System.Security.Principal;
 using LibreHardwareMonitor.Hardware;
 using SysMon.Core.Configuration;
 using SysMon.Core.Diagnostics;
+using SysMon.Core.Models;
 using SysMon.Core.Monitoring;
 
 namespace SysMon.Monitoring;
@@ -26,10 +27,45 @@ public sealed class HardwareSession : IDisposable
     public static bool IsElevated { get; } = DetectElevation();
 
     /// <summary>
-    /// True when we are running unelevated, which is why CPU temperature, package power and
-    /// motherboard sensors may be missing. Drives the UI's "restart as administrator" hint.
+    /// Works out how much of the hardware is actually reachable, so the UI can explain a missing
+    /// temperature instead of merely omitting it.
+    ///
+    /// Being elevated is not sufficient on its own: the sensor library needs a kernel driver, and
+    /// that driver is commonly blocked by Windows security features such as Memory Integrity even
+    /// for an administrator. That case is detectable — the CPU is enumerated but exposes no
+    /// temperature or clock sensors at all — and it needs a different remedy from simply elevating.
     /// </summary>
-    public bool HasLimitedAccess => IsAvailable && !IsElevated;
+    public SensorAccess GetSensorAccess()
+    {
+        if (!IsAvailable)
+        {
+            return SensorAccess.MonitoringDisabled;
+        }
+
+        if (HasReadableCpuSensors())
+        {
+            return SensorAccess.Full;
+        }
+
+        return IsElevated ? SensorAccess.DriverUnavailable : SensorAccess.NotElevated;
+    }
+
+    /// <summary>True when any CPU exposes a temperature or clock, which the driver is required for.</summary>
+    private bool HasReadableCpuSensors()
+    {
+        foreach (var hardware in GetHardware(HardwareType.Cpu))
+        {
+            foreach (var sensor in hardware.Sensors)
+            {
+                if (sensor.SensorType is SensorType.Temperature or SensorType.Clock && sensor.Value is not null)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Opens the library with only the sensor groups the user has enabled.</summary>
     public void Open(AppSettings settings)

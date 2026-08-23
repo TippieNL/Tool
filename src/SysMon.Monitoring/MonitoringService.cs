@@ -52,7 +52,7 @@ public sealed class MonitoringService : IDisposable
             _session.Open(_settings);
             EnsureLoop();
 
-            _loop!.SetLimitedSensorAccess(_session.HasLimitedAccess);
+            _loop!.SetSensorAccess(_session.GetSensorAccess());
             _loop.Start();
 
             Log.Info($"Monitoring started with {_providers.Count} providers at {_settings.UpdateIntervalMs} ms.");
@@ -86,7 +86,7 @@ public sealed class MonitoringService : IDisposable
         {
             _session.Open(_settings);
             EnsureLoop();
-            _loop!.SetLimitedSensorAccess(_session.HasLimitedAccess);
+            _loop!.SetSensorAccess(_session.GetSensorAccess());
             return _loop.PollOnce();
         }
     }

@@ -168,6 +168,15 @@ internal static class Program
         Line("BIOS", Format.TextOrNotAvailable(s.System.BiosVersion));
         Line("Uptime", Format.Uptime(s.System.Uptime));
         Line("Elevated", s.System.IsElevated.ToString());
+        Line("Sensor access", s.SensorAccess switch
+        {
+            SensorAccess.Full => "Full",
+            SensorAccess.NotElevated => "LIMITED - not running as administrator",
+            SensorAccess.DriverUnavailable => "LIMITED - elevated, but the kernel driver did not load "
+                + "(commonly blocked by Windows Memory Integrity)",
+            SensorAccess.MonitoringDisabled => "Hardware monitoring disabled in settings",
+            _ => s.SensorAccess.ToString(),
+        });
     }
 
     private static void PrintCost(List<double> durations, MonitoringService service)

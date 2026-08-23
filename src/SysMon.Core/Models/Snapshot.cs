@@ -32,11 +32,33 @@ public sealed record Snapshot
     /// <summary>Providers that are currently faulted, for the UI's degraded-state banner.</summary>
     public IReadOnlyList<string> FaultedProviders { get; init; } = [];
 
+    /// <summary>Why driver-backed sensors are or are not available.</summary>
+    public SensorAccess SensorAccess { get; init; }
+}
+
+/// <summary>
+/// How much of the hardware the sensor library can actually reach.
+///
+/// These are genuinely different situations with different remedies, and collapsing them into one
+/// "limited" flag leaves the user with a missing temperature and no idea what to do about it.
+/// </summary>
+public enum SensorAccess
+{
+    /// <summary>Driver-backed sensors are readable.</summary>
+    Full = 0,
+
+    /// <summary>The user turned hardware monitoring off.</summary>
+    MonitoringDisabled,
+
+    /// <summary>Running as a standard user. Elevating will unlock the missing sensors.</summary>
+    NotElevated,
+
     /// <summary>
-    /// True when hardware sensor access is limited because the process is not elevated.
-    /// Drives the "restart as administrator" hint.
+    /// Elevated, but the kernel driver did not load, so CPU and motherboard sensors are
+    /// unreadable. Usually a security feature blocking the driver rather than anything the user
+    /// did wrong.
     /// </summary>
-    public bool LimitedSensorAccess { get; init; }
+    DriverUnavailable,
 }
 
 public sealed record CpuSnapshot

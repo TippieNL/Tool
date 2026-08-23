@@ -144,11 +144,12 @@
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
                                        Style="{StaticResource BodyText}"
-                                       Text="Some sensors need administrator rights. CPU temperature, package power and motherboard sensors are unavailable in this session." />
+                                       Text="{Binding SensorAccessMessage}" />
                             <Button Grid.Column="1"
                                     Margin="12,0,8,0"
                                     Style="{StaticResource AccentButton}"
                                     Content="Restart as admin"
+                                    Visibility="{Binding CanRestartElevated, Converter={StaticResource Visible}}"
                                     Command="{Binding RestartElevatedCommand}" />
                             <Button Grid.Column="2"
                                     Style="{StaticResource GhostButton}"

@@ -157,8 +157,8 @@ public sealed class MonitoringLoop : IDisposable
         return snapshot;
     }
 
-    /// <summary>Sets a flag carried on every snapshot, used for the limited-sensor-access hint.</summary>
-    public void SetLimitedSensorAccess(bool limited) => _builder.LimitedSensorAccess = limited;
+    /// <summary>Sets the sensor-access state carried on every snapshot.</summary>
+    public void SetSensorAccess(SensorAccess access) => _builder.SensorAccess = access;
 
     private async Task RunAsync(CancellationToken token)
     {

@@ -113,9 +113,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsMonitoring { get; set; }
 
-    /// <summary>Set when the sensor library is loaded but running unelevated.</summary>
+    /// <summary>Set when driver-backed sensors are unavailable, whatever the reason.</summary>
     [ObservableProperty]
     public partial bool ShowElevationHint { get; set; }
+
+    /// <summary>Explains the specific reason sensors are missing, and what to do about it.</summary>
+    [ObservableProperty]
+    public partial string SensorAccessMessage { get; set; } = string.Empty;
+
+    /// <summary>Only elevating fixes some causes, so the restart button is not always offered.</summary>
+    [ObservableProperty]
+    public partial bool CanRestartElevated { get; set; }
 
     [ObservableProperty]
     public partial bool ElevationHintDismissed { get; set; }
@@ -258,14 +266,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         Settings.UpdateNetworkInterfaces(snapshot.Network.AvailableInterfaces);
 
-        // Show the hint whenever any driver-backed CPU sensor is missing, not just temperature.
-        // Keying it solely on temperature meant an implausible reading counted as success and
-        // suppressed the very explanation the user needed.
-        ShowElevationHint = snapshot.LimitedSensorAccess
-            && !ElevationHintDismissed
-            && (snapshot.Cpu.TemperatureC is null
-                || snapshot.Cpu.ClockMhz is null
-                || snapshot.Cpu.PackagePowerW is null);
+        UpdateSensorAccessHint(snapshot);
 
         HasFaults = snapshot.FaultedProviders.Count > 0;
         StatusText = HasFaults
@@ -273,6 +274,47 @@ public partial class MainViewModel : ObservableObject, IDisposable
             : $"Updated {snapshot.Timestamp:HH:mm:ss} · {Format.Percent(snapshot.Cpu.TotalLoad)} CPU";
 
         SnapshotApplied?.Invoke();
+    }
+
+    /// <summary>
+    /// Explains missing sensors. Elevation is only one of the reasons they can be unreadable, and
+    /// telling an administrator to "restart as administrator" would be useless advice.
+    /// </summary>
+    private void UpdateSensorAccessHint(Snapshot snapshot)
+    {
+        var missingCpuSensors = snapshot.Cpu.TemperatureC is null
+            || snapshot.Cpu.ClockMhz is null
+            || snapshot.Cpu.PackagePowerW is null;
+
+        if (ElevationHintDismissed || !missingCpuSensors || snapshot.SensorAccess == SensorAccess.Full)
+        {
+            ShowElevationHint = false;
+            return;
+        }
+
+        (SensorAccessMessage, CanRestartElevated) = snapshot.SensorAccess switch
+        {
+            SensorAccess.NotElevated => (
+                "CPU temperature, package power and motherboard sensors need administrator rights. "
+                + "Everything else on this page is already live.",
+                true),
+
+            SensorAccess.DriverUnavailable => (
+                "Running as administrator, but the hardware sensor driver could not load, so CPU and "
+                + "motherboard sensors are unreadable. This is usually Windows Memory Integrity "
+                + "(Settings › Privacy & security › Device security › Core isolation) blocking it. "
+                + "GPU, memory, storage and network readings are unaffected.",
+                false),
+
+            SensorAccess.MonitoringDisabled => (
+                "Hardware sensor monitoring is turned off in Settings, so temperatures, clocks and "
+                + "power are unavailable.",
+                false),
+
+            _ => (string.Empty, false),
+        };
+
+        ShowElevationHint = SensorAccessMessage.Length > 0;
     }
 
     /// <summary>Rebuilds the flat card list. Cheap, and only runs when the GPU set changes.</summary>

@@ -1,3 +1,4 @@
+using SysMon.Core.Models;
 using SysMon.Core.Monitoring;
 using Xunit;
 
@@ -40,7 +41,7 @@ public class SafeProviderTests
                 throw new InvalidOperationException("sensor exploded");
             }
 
-            builder.LimitedSensorAccess = true;
+            builder.Cpu = new CpuSnapshot { TotalLoad = 42 };
         }
 
         public void Dispose()
@@ -65,7 +66,7 @@ public class SafeProviderTests
         safe.Poll(builder);
 
         Assert.False(safe.IsFaulted);
-        Assert.True(builder.Build().LimitedSensorAccess);
+        Assert.Equal(42d, builder.Build().Cpu.TotalLoad);
         Assert.Empty(builder.Build().FaultedProviders);
     }
 
@@ -173,7 +174,7 @@ public class SafeProviderTests
         safe.Poll(builder);
 
         Assert.False(safe.IsFaulted);
-        Assert.True(builder.Build().LimitedSensorAccess);
+        Assert.Equal(42d, builder.Build().Cpu.TotalLoad);
     }
 
     [Fact]
@@ -200,6 +201,6 @@ public class SafeProviderTests
 
         var snapshot = builder.Build();
         Assert.Single(snapshot.FaultedProviders);
-        Assert.True(snapshot.LimitedSensorAccess);
+        Assert.Equal(42d, snapshot.Cpu.TotalLoad);
     }
 }

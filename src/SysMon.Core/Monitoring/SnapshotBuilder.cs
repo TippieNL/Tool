@@ -21,7 +21,7 @@ public sealed class SnapshotBuilder
 
     public SystemInfo System { get; set; } = new();
 
-    public bool LimitedSensorAccess { get; set; }
+    public SensorAccess SensorAccess { get; set; }
 
     public void SetGpus(IEnumerable<GpuSnapshot> gpus)
     {
@@ -58,6 +58,6 @@ public sealed class SnapshotBuilder
         Temperatures = _temperatures.Count == 0 ? [] : _temperatures.ToArray(),
         System = System,
         FaultedProviders = _faultedProviders.Count == 0 ? [] : _faultedProviders.ToArray(),
-        LimitedSensorAccess = LimitedSensorAccess,
+        SensorAccess = SensorAccess,
     };
 }

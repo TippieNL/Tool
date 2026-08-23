@@ -258,7 +258,7 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Grid.Column="1" Style="{StaticResource MetricValue}" FontSize="12" Text="{Binding Value}" />
                                 </Grid>
                             </DataTemplate>

@@ -2,23 +2,29 @@ using LibreHardwareMonitor.Hardware;
 using SysMon.Core.Diagnostics;
 using SysMon.Core.Models;
 using SysMon.Core.Monitoring;
+using SysMon.Monitoring.Interop;
 
 namespace SysMon.Monitoring.Providers;
 
 /// <summary>
-/// Physical drives: capacity, free space, throughput, activity, temperature and media type.
+/// Drives: capacity, free space, throughput, activity, temperature and media type.
 ///
-/// Capacity comes from the mounted volumes and throughput from the sensor library's storage
-/// hardware, which are two different views of the same disk. They are joined by matching each
-/// physical drive to the volumes that live on it, so a disk with several partitions is reported
-/// once with its combined space rather than once per letter.
+/// Rows are built from mounted volumes rather than from sensor hardware, because a volume always
+/// knows its own capacity whereas the sensor library may not be available at all. Hardware
+/// readings are then attached to the volume that lives on that disk. This ordering matters: it
+/// guarantees a mounted drive never reports an unknown size just because a sensor lookup failed.
 ///
-/// This runs on the slow tier: disk free space changes slowly and enumerating volumes touches the
+/// The volume-to-hardware join goes through the physical disk number, not through the hardware's
+/// display name. Names are model strings such as "ST1000DM010-2EP102" and frequently mention no
+/// drive letter at all, so matching on them silently fails.
+///
+/// Runs on the slow tier: free space changes slowly and enumerating volumes touches the
 /// filesystem, which is not something to do every second.
 /// </summary>
 public sealed class StorageProvider : IMetricProvider
 {
     private readonly HardwareSession _session;
+    private readonly VolumeMapper _volumes = new();
     private readonly List<DriveSnapshot> _buffer = [];
 
     public StorageProvider(HardwareSession session) => _session = session;
@@ -37,85 +43,63 @@ public sealed class StorageProvider : IMetricProvider
     {
         _buffer.Clear();
 
-        var volumes = ReadVolumes();
-        var matchedVolumes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hardware = ReadStorageHardware();
+        var claimed = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var hardware in _session.GetHardware(HardwareType.Storage))
+        foreach (var volume in ReadVolumes())
         {
-            HardwareSession.Update(hardware);
+            var match = MatchHardware(hardware, volume);
 
-            // The library names storage hardware after the model and the letters it hosts,
-            // e.g. "Samsung SSD 970 EVO 1TB (C:)". That is how a drive is matched to its volumes.
-            var driveLetters = ExtractDriveLetters(hardware.Name);
-
-            double? total = null;
-            double? free = null;
-            string? mountPoint = null;
-            string? label = null;
-
-            foreach (var letter in driveLetters)
+            if (match is not null)
             {
-                if (!volumes.TryGetValue(letter, out var volume))
-                {
-                    continue;
-                }
-
-                matchedVolumes.Add(letter);
-
-                total = (total ?? 0) + volume.TotalBytes;
-                free = (free ?? 0) + volume.FreeBytes;
-                mountPoint ??= volume.MountPoint;
-                label ??= volume.Label;
-            }
-
-            var used = total is { } t && free is { } f ? Math.Max(0, t - f) : (double?)null;
-
-            _buffer.Add(new DriveSnapshot
-            {
-                Key = hardware.Identifier.ToString(),
-                MountPoint = mountPoint ?? JoinLetters(driveLetters),
-                Label = string.IsNullOrWhiteSpace(label) ? hardware.Name : label,
-                Model = hardware.Name,
-                TotalBytes = total,
-                UsedBytes = used,
-                FreeBytes = free,
-                UsedPercent = total is { } capacity && capacity > 0 && used is { } u
-                    ? Math.Clamp(u / capacity * 100d, 0, 100)
-                    : null,
-                ReadBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, SensorRanges.Bytes, "Read Rate"),
-                WriteBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, SensorRanges.Bytes, "Write Rate"),
-                ActivityPercent = HardwareSession.ReadSensor(hardware, SensorType.Load, SensorRanges.Percent, "Total Activity", "Activity"),
-                TemperatureC = HardwareSession.ReadSensor(hardware, SensorType.Temperature, SensorRanges.Temperature, "Temperature"),
-                MediaType = DetectMediaType(hardware),
-            });
-        }
-
-        // Volumes the sensor library never reported (it is unavailable, or the volume is a USB
-        // stick or network-backed) still deserve a capacity readout, just without hardware data.
-        foreach (var (letter, volume) in volumes)
-        {
-            if (matchedVolumes.Contains(letter))
-            {
-                continue;
+                claimed.Add(match.Key);
             }
 
             var used = Math.Max(0, volume.TotalBytes - volume.FreeBytes);
 
             _buffer.Add(new DriveSnapshot
             {
-                Key = "volume:" + letter,
+                Key = "volume:" + volume.Letter,
                 MountPoint = volume.MountPoint,
-                Label = string.IsNullOrWhiteSpace(volume.Label) ? volume.MountPoint : volume.Label,
-                Model = null,
+                Label = string.IsNullOrWhiteSpace(volume.Label) ? match?.Model ?? volume.MountPoint : volume.Label,
+                Model = match?.Model,
                 TotalBytes = volume.TotalBytes,
                 UsedBytes = used,
                 FreeBytes = volume.FreeBytes,
                 UsedPercent = volume.TotalBytes > 0 ? Math.Clamp(used / volume.TotalBytes * 100d, 0, 100) : null,
-                MediaType = volume.IsRemovable ? DriveMediaType.Removable : DriveMediaType.Unknown,
+                ReadBytesPerSecond = match?.ReadRate,
+                WriteBytesPerSecond = match?.WriteRate,
+                ActivityPercent = match?.Activity,
+                TemperatureC = match?.TemperatureC,
+                MediaType = volume.IsRemovable ? DriveMediaType.Removable : match?.MediaType ?? DriveMediaType.Unknown,
             });
         }
 
-        _buffer.Sort(static (a, b) => string.CompareOrdinal(a.MountPoint, b.MountPoint));
+        // A physical drive with no mounted volume still deserves a row, so an unformatted or
+        // unlettered disk is not invisible. It reports hardware readings but no capacity, which
+        // is the truth for something the filesystem cannot see.
+        foreach (var drive in hardware)
+        {
+            if (claimed.Contains(drive.Key))
+            {
+                continue;
+            }
+
+            _buffer.Add(new DriveSnapshot
+            {
+                Key = drive.Key,
+                MountPoint = null,
+                Label = drive.Model,
+                Model = drive.Model,
+                ReadBytesPerSecond = drive.ReadRate,
+                WriteBytesPerSecond = drive.WriteRate,
+                ActivityPercent = drive.Activity,
+                TemperatureC = drive.TemperatureC,
+                MediaType = drive.MediaType,
+            });
+        }
+
+        _buffer.Sort(static (a, b) => string.CompareOrdinal(a.MountPoint ?? "￿", b.MountPoint ?? "￿"));
 
         builder.SetDrives(_buffer);
     }
@@ -125,9 +109,81 @@ public sealed class StorageProvider : IMetricProvider
         // Nothing to release.
     }
 
-    private static Dictionary<string, VolumeInfo> ReadVolumes()
+    /// <summary>
+    /// Finds the hardware behind a volume: first by physical disk number, then by model name as a
+    /// fallback for devices whose disk number could not be read (USB enclosures often refuse).
+    /// </summary>
+    private StorageHardware? MatchHardware(List<StorageHardware> hardware, VolumeInfo volume)
     {
-        var volumes = new Dictionary<string, VolumeInfo>(StringComparer.OrdinalIgnoreCase);
+        if (volume.DiskNumber is { } diskNumber)
+        {
+            var model = _volumes.GetDiskModel(diskNumber);
+
+            if (!string.IsNullOrEmpty(model))
+            {
+                foreach (var candidate in hardware)
+                {
+                    if (candidate.Model.Contains(model, StringComparison.OrdinalIgnoreCase) ||
+                        model.Contains(candidate.Model, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return candidate;
+                    }
+                }
+            }
+
+            // The sensor library indexes its storage by physical drive number.
+            foreach (var candidate in hardware)
+            {
+                if (candidate.Index == diskNumber)
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private List<StorageHardware> ReadStorageHardware()
+    {
+        var drives = new List<StorageHardware>();
+
+        foreach (var item in _session.GetHardware(HardwareType.Storage))
+        {
+            HardwareSession.Update(item);
+
+            var identifier = item.Identifier.ToString();
+
+            drives.Add(new StorageHardware
+            {
+                Key = identifier,
+                Index = ParseTrailingIndex(identifier),
+                Model = item.Name,
+                ReadRate = HardwareSession.ReadSensor(item, SensorType.Throughput, SensorRanges.Bytes, "Read Rate"),
+                WriteRate = HardwareSession.ReadSensor(item, SensorType.Throughput, SensorRanges.Bytes, "Write Rate"),
+                Activity = HardwareSession.ReadSensor(item, SensorType.Load, SensorRanges.Percent, "Total Activity", "Activity"),
+                TemperatureC = HardwareSession.ReadSensor(item, SensorType.Temperature, SensorRanges.Temperature, "Temperature"),
+                MediaType = DetectMediaType(item),
+            });
+        }
+
+        return drives;
+    }
+
+    /// <summary>Reads the drive number from an identifier such as "/hdd/2".</summary>
+    private static uint? ParseTrailingIndex(string identifier)
+    {
+        var slash = identifier.LastIndexOf('/');
+
+        return slash >= 0 && slash + 1 < identifier.Length
+            && uint.TryParse(identifier[(slash + 1)..], out var index)
+                ? index
+                : null;
+    }
+
+    private static List<VolumeInfo> ReadVolumes()
+    {
+        var volumes = new List<VolumeInfo>();
 
         DriveInfo[] drives;
         try
@@ -157,12 +213,14 @@ public sealed class StorageProvider : IMetricProvider
                     continue;
                 }
 
-                volumes[letter] = new VolumeInfo(
+                volumes.Add(new VolumeInfo(
+                    letter,
                     drive.Name,
                     SafeLabel(drive),
                     drive.TotalSize,
                     drive.AvailableFreeSpace,
-                    drive.DriveType == DriveType.Removable);
+                    drive.DriveType == DriveType.Removable,
+                    VolumeMapper.GetDiskNumber(letter)));
             }
             catch (Exception ex)
             {
@@ -187,40 +245,10 @@ public sealed class StorageProvider : IMetricProvider
         }
     }
 
-    /// <summary>Pulls "C", "D" out of a name such as "Samsung SSD 970 EVO 1TB (C:, D:)".</summary>
-    private static List<string> ExtractDriveLetters(string hardwareName)
-    {
-        var letters = new List<string>();
-
-        for (var i = 0; i + 1 < hardwareName.Length; i++)
-        {
-            if (hardwareName[i + 1] != ':' || !char.IsAsciiLetter(hardwareName[i]))
-            {
-                continue;
-            }
-
-            // Only treat it as a drive letter when it is not part of a longer word.
-            if (i > 0 && char.IsAsciiLetterOrDigit(hardwareName[i - 1]))
-            {
-                continue;
-            }
-
-            var letter = hardwareName[i].ToString().ToUpperInvariant();
-            if (!letters.Contains(letter))
-            {
-                letters.Add(letter);
-            }
-        }
-
-        return letters;
-    }
-
-    private static string? JoinLetters(List<string> letters) =>
-        letters.Count == 0 ? null : string.Join(", ", letters.Select(static l => l + ":"));
-
     /// <summary>
-    /// SSD or HDD. The library exposes rotational drives through a spin-up or spin-down sensor,
-    /// and NVMe/SSD models through their sensor set, so absence of rotation is the signal.
+    /// SSD or HDD. Rotational drives expose a spin-up or spin-down sensor, and flash exposes wear
+    /// and remaining-life counters, so the sensor set identifies the medium when the model string
+    /// does not.
     /// </summary>
     private static DriveMediaType DetectMediaType(IHardware hardware)
     {
@@ -246,7 +274,6 @@ public sealed class StorageProvider : IMetricProvider
             return DriveMediaType.Hdd;
         }
 
-        // Wear level and remaining life are only meaningful on flash.
         foreach (var sensor in hardware.Sensors)
         {
             if (sensor.Name.Contains("Wear", StringComparison.OrdinalIgnoreCase) ||
@@ -259,10 +286,31 @@ public sealed class StorageProvider : IMetricProvider
         return DriveMediaType.Unknown;
     }
 
+    private sealed class StorageHardware
+    {
+        public required string Key { get; init; }
+
+        public uint? Index { get; init; }
+
+        public required string Model { get; init; }
+
+        public double? ReadRate { get; init; }
+
+        public double? WriteRate { get; init; }
+
+        public double? Activity { get; init; }
+
+        public double? TemperatureC { get; init; }
+
+        public DriveMediaType MediaType { get; init; }
+    }
+
     private readonly record struct VolumeInfo(
+        string Letter,
         string MountPoint,
         string? Label,
         double TotalBytes,
         double FreeBytes,
-        bool IsRemovable);
+        bool IsRemovable,
+        uint? DiskNumber);
 }

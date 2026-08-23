@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using SysMon.Core.Formatting;
 using SysMon.Core.History;
+using SysMon.Core.Monitoring;
 using SysMon.Core.Models;
 
 namespace SysMon.App.ViewModels;
@@ -358,6 +359,14 @@ public partial class TemperatureViewModel : ObservableObject
     [ObservableProperty]
     public partial string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Name qualified by its hardware when the sensor name alone is meaningless. Drives commonly
+    /// report a sensor called simply "Temperature", which tells the reader nothing in a list that
+    /// mixes CPU, GPU and storage.
+    /// </summary>
+    [ObservableProperty]
+    public partial string DisplayName { get; set; } = string.Empty;
+
     [ObservableProperty]
     public partial string Value { get; set; } = Format.NotAvailable;
 
@@ -371,6 +380,8 @@ public partial class TemperatureViewModel : ObservableObject
         Name = reading.Name;
         Value = Format.Temperature(reading.Celsius, unit);
         Celsius = reading.Celsius ?? 0;
+
+        DisplayName = SensorNaming.IsGenericTemperatureName(reading.Name) ? reading.Source : reading.Name;
     }
 }
 
