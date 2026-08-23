@@ -6,6 +6,7 @@
     <Project Path="src/SysMon.Probe/SysMon.Probe.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SysMon.App.Tests/SysMon.App.Tests.csproj" />
     <Project Path="tests/SysMon.Core.Tests/SysMon.Core.Tests.csproj" />
   </Folder>
 </Solution>

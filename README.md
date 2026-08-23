@@ -138,9 +138,19 @@ Adding a sensor means writing one `IMetricProvider`, choosing its tier, and addi
 dotnet test Tool.slnx -c Release
 ```
 
-93 tests covering the history ring buffer (wrap, resize, gaps), tier scheduling and the live timer
-loop, alert hysteresis and re-notify throttling, settings round-trip and corrupt-file recovery,
-display formatting, and provider fault isolation and recovery.
+Two suites:
+
+- **`SysMon.Core.Tests`** (93 tests, any OS) — the history ring buffer (wrap, resize, gaps), tier
+  scheduling and the live timer loop, alert hysteresis and re-notify throttling, settings
+  round-trip and corrupt-file recovery, display formatting, and provider fault isolation.
+- **`SysMon.App.Tests`** (Windows only) — renders every view and the main window against a real
+  view model and fails on any WPF binding error. A broken binding throws nothing and draws
+  nothing, so without these a mis-typed path shows up only as a blank value on screen. Also
+  asserts that each page actually receives the view model as its DataContext.
+
+Both run in CI on `windows-latest`, which is the only environment that validates this project
+fully: package pruning (NU1510) and Windows framework references behave differently when
+cross-targeting, so a Linux build can pass while a Windows build fails.
 
 Hardware-specific behaviour cannot be unit tested; that is what `SysMon.Probe` is for.
 

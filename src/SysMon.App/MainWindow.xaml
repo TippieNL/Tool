@@ -157,7 +157,13 @@
                         </Grid>
                     </Border>
 
-                    <ContentControl Grid.Row="1" Margin="0,4,0,0">
+                    <!--
+                        Content must be bound explicitly. A ContentControl passes its Content down
+                        as the DataContext of whatever ContentTemplate renders, so leaving Content
+                        unset gives every page a null DataContext: static labels still draw and
+                        every bound value silently resolves to empty.
+                    -->
+                    <ContentControl Grid.Row="1" Margin="0,4,0,0" Content="{Binding}">
                         <ContentControl.Style>
                             <Style TargetType="ContentControl">
                                 <Style.Triggers>

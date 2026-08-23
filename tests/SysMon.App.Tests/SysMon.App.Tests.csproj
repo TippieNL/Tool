@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+    <!--
+      These tests drive real WPF visuals, so they can only execute on Windows. They still
+      compile everywhere (so a Linux build catches type errors); marking them as a non-test
+      project off Windows keeps `dotnet test` on the solution from trying to run them there.
+    -->
+    <RuntimeIdentifier Condition="'$(OS)' == 'Windows_NT'">win-x64</RuntimeIdentifier>
+    <IsTestProject Condition="'$(OS)' != 'Windows_NT'">false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SysMon.App\SysMon.App.csproj" />
+    <ProjectReference Include="..\..\src\SysMon.Core\SysMon.Core.csproj" />
+    <ProjectReference Include="..\..\src\SysMon.Monitoring\SysMon.Monitoring.csproj" />
+  </ItemGroup>
+
+</Project>

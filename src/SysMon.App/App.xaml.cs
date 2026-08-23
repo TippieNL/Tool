@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -54,6 +55,8 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
 
+        AttachBindingDiagnostics();
+
         var history = new HistoryStore(HistoryStore.CapacityFor(
             TimeSpan.FromSeconds(settings.GraphHistorySeconds),
             TimeSpan.FromMilliseconds(settings.UpdateIntervalMs)));
@@ -106,6 +109,43 @@ public partial class App : Application
         _instanceMutex?.Dispose();
 
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Routes WPF data-binding failures into the log.
+    ///
+    /// A broken binding throws nothing and draws nothing — it renders as an empty string — so
+    /// without this a mis-typed path is invisible until someone notices a blank value on screen.
+    /// </summary>
+    private static void AttachBindingDiagnostics()
+    {
+        try
+        {
+            PresentationTraceSources.Refresh();
+
+            var source = PresentationTraceSources.DataBindingSource;
+            source.Switch.Level = SourceLevels.Error;
+            source.Listeners.Add(new BindingErrorListener());
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Could not attach binding diagnostics.", ex);
+        }
+    }
+
+    private sealed class BindingErrorListener : TraceListener
+    {
+        public override void Write(string? message)
+        {
+        }
+
+        public override void WriteLine(string? message)
+        {
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                Log.Once($"binding:{message}", LogLevel.Warn, $"Binding failure: {message}");
+            }
+        }
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
