@@ -44,7 +44,8 @@ internal static class Program
             Console.WriteLine("    motherboard/fan sensors usually require elevation and may read N/A.");
         }
 
-        var settings = new SettingsStore(AppPaths.SettingsFile).Load();
+        using var settingsStore = new SettingsStore(AppPaths.SettingsFile);
+        var settings = settingsStore.Load();
         settings.UpdateIntervalMs = Math.Clamp(intervalMs, 500, 10_000);
 
         using var session = new HardwareSession();

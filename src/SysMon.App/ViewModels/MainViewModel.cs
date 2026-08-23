@@ -42,6 +42,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private bool _uiVisible = true;
     private bool _disposed;
 
+    /// <summary>Guards against queuing a second UI update while one is still pending.</summary>
+    private int _applyQueued;
+
     public MainViewModel(
         MonitoringService monitoring,
         HistoryStore history,
@@ -195,8 +198,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
 
-        // One marshal per tick for the entire UI.
-        _dispatcher.BeginInvoke(DispatcherPriority.Background, () => Apply(snapshot));
+        // One marshal per tick for the entire UI, and never more than one in flight: if the UI
+        // thread is busy, later ticks are dropped rather than queued, so a stalled window cannot
+        // build a backlog it then has to replay.
+        if (Interlocked.Exchange(ref _applyQueued, 1) == 1)
+        {
+            return;
+        }
+
+        _dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            Interlocked.Exchange(ref _applyQueued, 0);
+            Apply(snapshot);
+        });
     }
 
     private void RaiseAlerts(Snapshot snapshot)

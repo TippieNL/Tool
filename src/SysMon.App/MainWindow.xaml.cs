@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly TrayIconRenderer _trayRenderer = new();
 
     private MainViewModel? _viewModel;
+    private ImageSource? _defaultTrayIcon;
     private bool _reallyClosing;
 
     /// <summary>Always the live settings object, never a stale copy taken at startup.</summary>
@@ -39,6 +40,11 @@ public partial class MainWindow : Window
         // The tray icon is only created on demand by the library; force it so a start-minimised
         // launch still has somewhere to appear.
         TrayIcon?.ForceCreate(enablesEfficiencyMode: false);
+
+        // Remembered so turning tray statistics off restores the app icon rather than
+        // leaving whatever number was last drawn.
+        _defaultTrayIcon = TrayIcon?.IconSource;
+
         UpdateTrayIcon();
     }
 
@@ -115,6 +121,11 @@ public partial class MainWindow : Window
 
         if (!Settings.EnableTrayStats)
         {
+            if (_defaultTrayIcon is not null && !ReferenceEquals(icon.IconSource, _defaultTrayIcon))
+            {
+                icon.IconSource = _defaultTrayIcon;
+            }
+
             icon.ToolTipText = $"{AppPaths.DisplayName} — {_viewModel.Cpu.PrimaryValue} CPU";
             return;
         }

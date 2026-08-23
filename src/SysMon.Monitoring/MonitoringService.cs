@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using SysMon.Core.Configuration;
 using SysMon.Core.Diagnostics;
 using SysMon.Core.History;
@@ -9,32 +8,21 @@ using SysMon.Monitoring.Providers;
 namespace SysMon.Monitoring;
 
 /// <summary>
-/// Drives every provider from a single background loop and publishes one immutable snapshot per tick.
-///
-/// The design targets a small, steady cost:
-/// - one timer for the whole app, not one per card
-/// - providers split across tiers, so expensive sources (storage, motherboard) run every few
-///   seconds while cheap ones run every tick
-/// - one event per tick, so the UI marshals once instead of per metric
-/// - a background multiplier that slows the loop while the window is hidden
+/// The Windows-specific half of monitoring: owns the sensor library session, builds the providers,
+/// and applies settings. The scheduling itself lives in <see cref="MonitoringLoop"/>, which has no
+/// platform dependency.
 /// </summary>
 public sealed class MonitoringService : IDisposable
 {
     private readonly HardwareSession _session;
-    private readonly SnapshotBuilder _builder = new();
-    private readonly List<SafeProvider> _providers = [];
     private readonly HistoryStore _history;
+    private readonly List<SafeProvider> _providers = [];
     private readonly Lock _gate = new();
 
-    private CancellationTokenSource? _cts;
-    private Task? _loop;
+    private MonitoringLoop? _loop;
     private AppSettings _settings;
-    private volatile bool _isBackground;
-    private int _slowTickCounter;
+    private bool _isBackground;
     private bool _disposed;
-
-    /// <summary>Slow-tier providers run once every this many fast ticks, at least every 5 seconds.</summary>
-    private const int SlowTierSeconds = 5;
 
     public MonitoringService(AppSettings settings, HardwareSession session, HistoryStore history)
     {
@@ -43,16 +31,14 @@ public sealed class MonitoringService : IDisposable
         _history = history;
     }
 
-    /// <summary>Raised once per tick on the monitoring thread. Handlers must marshal to the UI themselves.</summary>
+    /// <summary>Raised once per tick on the monitoring thread.</summary>
     public event Action<Snapshot>? SnapshotAvailable;
 
-    public bool IsRunning { get; private set; }
+    public bool IsRunning => _loop?.IsRunning ?? false;
 
-    /// <summary>Most recent snapshot, so a newly-opened window has something to show immediately.</summary>
-    public Snapshot Latest { get; private set; } = Snapshot.Empty;
+    public Snapshot Latest => _loop?.Latest ?? Snapshot.Empty;
 
-    /// <summary>Wall-clock duration of the last tick, surfaced by the probe for cost measurement.</summary>
-    public TimeSpan LastTickDuration { get; private set; }
+    public TimeSpan LastTickDuration => _loop?.LastTickDuration ?? TimeSpan.Zero;
 
     public void Start()
     {
@@ -64,17 +50,10 @@ public sealed class MonitoringService : IDisposable
             }
 
             _session.Open(_settings);
-            BuildProviders();
+            EnsureLoop();
 
-            _cts = new CancellationTokenSource();
-            IsRunning = true;
-
-            var token = _cts.Token;
-            _loop = Task.Factory.StartNew(
-                () => RunLoopAsync(token),
-                token,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default).Unwrap();
+            _loop!.SetLimitedSensorAccess(_session.HasLimitedAccess);
+            _loop.Start();
 
             Log.Info($"Monitoring started with {_providers.Count} providers at {_settings.UpdateIntervalMs} ms.");
         }
@@ -82,44 +61,39 @@ public sealed class MonitoringService : IDisposable
 
     public void Stop()
     {
-        Task? loop;
-        CancellationTokenSource? cts;
-
         lock (_gate)
         {
-            if (!IsRunning)
+            if (_loop is null)
             {
                 return;
             }
 
-            IsRunning = false;
-            cts = _cts;
-            loop = _loop;
-            _cts = null;
+            _loop.Stop();
+            _loop.SnapshotAvailable -= OnSnapshot;
+            _loop.Dispose();
             _loop = null;
-        }
 
-        try
-        {
-            cts?.Cancel();
-            loop?.Wait(TimeSpan.FromSeconds(2));
-        }
-        catch (Exception ex) when (ex is AggregateException or OperationCanceledException)
-        {
-            // Cancellation is the expected way out of the loop.
-        }
-        finally
-        {
-            cts?.Dispose();
             DisposeProviders();
         }
 
         Log.Info("Monitoring stopped.");
     }
 
+    /// <summary>Runs one tick synchronously, opening the session first if needed. Used by the probe.</summary>
+    public Snapshot PollOnce()
+    {
+        lock (_gate)
+        {
+            _session.Open(_settings);
+            EnsureLoop();
+            _loop!.SetLimitedSensorAccess(_session.HasLimitedAccess);
+            return _loop.PollOnce();
+        }
+    }
+
     /// <summary>
-    /// Applies new settings. Changes that alter which hardware groups are open, or the shape of
-    /// the history buffers, are handled by restarting the loop rather than mutating it in flight.
+    /// Applies new settings. Interval and history changes are picked up in flight; changes to
+    /// which sensor groups are open require reopening the library, so the loop is restarted.
     /// </summary>
     public void ApplySettings(AppSettings settings)
     {
@@ -143,144 +117,49 @@ public sealed class MonitoringService : IDisposable
             TimeSpan.FromSeconds(settings.GraphHistorySeconds),
             TimeSpan.FromMilliseconds(settings.UpdateIntervalMs)));
 
-        if (needsRestart)
+        if (!needsRestart)
         {
-            _session.Reconfigure(settings);
+            return;
+        }
 
-            if (wasRunning)
-            {
-                Start();
-            }
+        _session.Reconfigure(settings);
+
+        if (wasRunning)
+        {
+            Start();
         }
     }
 
-    /// <summary>
-    /// Tells the service the window is hidden, so it can slow down. History keeps filling; only
-    /// the sampling rate changes.
-    /// </summary>
-    public void SetBackgroundMode(bool isBackground) => _isBackground = isBackground;
-
-    /// <summary>Runs one tick synchronously. Used by the probe and by tests.</summary>
-    public Snapshot PollOnce()
+    public void SetBackgroundMode(bool isBackground)
     {
-        var stopwatch = Stopwatch.StartNew();
-
-        _builder.BeginTick();
-
-        var runSlowTier = _slowTickCounter <= 0;
-        if (runSlowTier)
-        {
-            _slowTickCounter = Math.Max(1, (int)Math.Round(
-                SlowTierSeconds * 1000d / Math.Max(1, _settings.UpdateIntervalMs)));
-        }
-
-        _slowTickCounter--;
-
-        foreach (var provider in _providers)
-        {
-            // Static providers publish cached values every tick; that is a field copy, not work.
-            if (provider.Tier == PollTier.Slow && !runSlowTier)
-            {
-                continue;
-            }
-
-            provider.Poll(_builder);
-        }
-
-        _builder.LimitedSensorAccess = _session.HasLimitedAccess;
-
-        var snapshot = _builder.Build();
-        Latest = snapshot;
-        RecordHistory(snapshot);
-
-        LastTickDuration = stopwatch.Elapsed;
-        return snapshot;
+        _isBackground = isBackground;
+        _loop?.SetBackgroundMode(isBackground);
     }
 
-    /// <summary>Providers currently in a faulted state, for the diagnostics view.</summary>
+    /// <summary>Providers currently faulted, for the diagnostics view and the probe.</summary>
     public IReadOnlyList<(string Name, string? Error)> FaultedProviders() =>
-        _providers.Where(p => p.IsFaulted).Select(p => (p.Name, p.LastError)).ToArray();
+        _providers.Where(static p => p.IsFaulted).Select(static p => (p.Name, p.LastError)).ToArray();
 
-    private async Task RunLoopAsync(CancellationToken token)
+    private void EnsureLoop()
     {
-        var interval = CurrentInterval();
-        using var timer = new PeriodicTimer(interval);
-
-        try
+        if (_loop is not null)
         {
-            // Publish an immediate first sample so the window is not blank while the first
-            // interval elapses. Utilisation needs two samples, so this one carries no CPU load.
-            Publish(PollOnce());
+            return;
+        }
 
-            while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
-            {
-                var desired = CurrentInterval();
-                if (desired != interval)
-                {
-                    interval = desired;
-                    timer.Period = desired;
-                }
+        BuildProviders();
 
-                Publish(PollOnce());
-            }
-        }
-        catch (OperationCanceledException)
+        _loop = new MonitoringLoop(_providers, _history, () => new MonitoringOptions
         {
-            // Normal shutdown.
-        }
-        catch (Exception ex)
-        {
-            // The loop itself failing is the one thing SafeProvider cannot cover.
-            Log.Error("The monitoring loop stopped unexpectedly.", ex);
-            IsRunning = false;
-        }
+            Interval = TimeSpan.FromMilliseconds(_settings.UpdateIntervalMs),
+            BackgroundMultiplier = _settings.BackgroundIntervalMultiplier,
+        });
+
+        _loop.SetBackgroundMode(_isBackground);
+        _loop.SnapshotAvailable += OnSnapshot;
     }
 
-    private void Publish(Snapshot snapshot)
-    {
-        try
-        {
-            SnapshotAvailable?.Invoke(snapshot);
-        }
-        catch (Exception ex)
-        {
-            // A subscriber throwing must not stop monitoring.
-            Log.Once("publish", LogLevel.Error, "A snapshot subscriber threw.", ex);
-        }
-    }
-
-    private TimeSpan CurrentInterval()
-    {
-        var multiplier = _isBackground ? Math.Max(1, _settings.BackgroundIntervalMultiplier) : 1;
-        return TimeSpan.FromMilliseconds(_settings.UpdateIntervalMs * multiplier);
-    }
-
-    private void RecordHistory(Snapshot snapshot)
-    {
-        _history.Add(SeriesIds.CpuLoad, snapshot.Cpu.TotalLoad);
-        _history.Add(SeriesIds.CpuTemperature, snapshot.Cpu.TemperatureC);
-        _history.Add(SeriesIds.MemoryLoad, snapshot.Memory.LoadPercent);
-        _history.Add(SeriesIds.NetworkDown, snapshot.Network.DownloadBytesPerSecond);
-        _history.Add(SeriesIds.NetworkUp, snapshot.Network.UploadBytesPerSecond);
-
-        foreach (var gpu in snapshot.Gpus)
-        {
-            _history.Add(SeriesIds.GpuLoad(gpu.Key), gpu.Load);
-            _history.Add(SeriesIds.GpuTemperature(gpu.Key), gpu.TemperatureC);
-        }
-
-        // One combined disk-activity series: the busiest drive is what the user cares about.
-        double? diskActivity = null;
-        foreach (var drive in snapshot.Drives)
-        {
-            if (drive.ActivityPercent is { } activity && (diskActivity is null || activity > diskActivity))
-            {
-                diskActivity = activity;
-            }
-        }
-
-        _history.Add(SeriesIds.DiskActivity, diskActivity);
-    }
+    private void OnSnapshot(Snapshot snapshot) => SnapshotAvailable?.Invoke(snapshot);
 
     private void BuildProviders()
     {
@@ -288,7 +167,7 @@ public sealed class MonitoringService : IDisposable
 
         // Order matters: CPU, GPU and storage refresh their hardware, and the temperature
         // provider then reads the values they made current instead of updating twice.
-        var providers = new List<IMetricProvider>
+        var providers = new IMetricProvider[]
         {
             new SystemInfoProvider(_session),
             new CpuProvider(_session),

@@ -7,9 +7,15 @@ namespace SysMon.Core.History;
 /// Samples are <see cref="float"/> because the graphs only need display precision, and
 /// <see cref="float.NaN"/> encodes a gap (sensor unavailable for that tick) so that the renderer
 /// can break the line instead of drawing a misleading drop to zero.
+///
+/// Three threads touch a series: the monitoring loop adds, the render thread copies out, and the
+/// UI thread resizes when the history duration changes. Every operation therefore takes a lock.
+/// It is uncontended in practice (a handful of samples per second against a render pass), and the
+/// alternative — a resize racing an add — indexes past the new buffer and throws.
 /// </summary>
 public sealed class HistorySeries
 {
+    private readonly Lock _gate = new();
     private float[] _buffer;
     private int _head;
 
@@ -23,38 +29,64 @@ public sealed class HistorySeries
 
     public string Id { get; }
 
-    public int Capacity => _buffer.Length;
+    public int Capacity
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _buffer.Length;
+            }
+        }
+    }
 
     /// <summary>Number of samples currently held, at most <see cref="Capacity"/>.</summary>
-    public int Count { get; private set; }
+    public int Count
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _count;
+            }
+        }
+    }
+
+    private int _count;
 
     /// <summary>Most recent sample, or null when empty or the newest sample is a gap.</summary>
     public double? Latest
     {
         get
         {
-            if (Count == 0)
+            lock (_gate)
             {
-                return null;
-            }
+                if (_count == 0)
+                {
+                    return null;
+                }
 
-            var value = _buffer[(_head - 1 + _buffer.Length) % _buffer.Length];
-            return float.IsNaN(value) ? null : value;
+                var value = _buffer[(_head - 1 + _buffer.Length) % _buffer.Length];
+                return float.IsNaN(value) ? null : value;
+            }
         }
     }
 
     /// <summary>Adds a sample. <c>null</c> is stored as a gap.</summary>
     public void Add(double? value)
     {
-        _buffer[_head] = value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value)
-            ? float.NaN
-            : (float)value.Value;
-
-        _head = (_head + 1) % _buffer.Length;
-
-        if (Count < _buffer.Length)
+        lock (_gate)
         {
-            Count++;
+            _buffer[_head] = value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value)
+                ? float.NaN
+                : (float)value.Value;
+
+            _head = (_head + 1) % _buffer.Length;
+
+            if (_count < _buffer.Length)
+            {
+                _count++;
+            }
         }
     }
 
@@ -64,27 +96,30 @@ public sealed class HistorySeries
     /// </summary>
     public int CopyTo(Span<float> destination)
     {
-        var count = Math.Min(Count, destination.Length);
-        if (count == 0)
+        lock (_gate)
         {
-            return 0;
+            var count = Math.Min(_count, destination.Length);
+            if (count == 0)
+            {
+                return 0;
+            }
+
+            // Oldest sample sits `_count` slots behind the head.
+            var start = (_head - _count + _buffer.Length) % _buffer.Length;
+
+            // Skip the oldest samples when the destination cannot hold them all.
+            start = (start + (_count - count)) % _buffer.Length;
+
+            var firstRun = Math.Min(count, _buffer.Length - start);
+            _buffer.AsSpan(start, firstRun).CopyTo(destination);
+
+            if (firstRun < count)
+            {
+                _buffer.AsSpan(0, count - firstRun).CopyTo(destination[firstRun..]);
+            }
+
+            return count;
         }
-
-        // Oldest sample sits `Count` slots behind the head.
-        var start = (_head - Count + _buffer.Length) % _buffer.Length;
-
-        // Skip the oldest samples when the destination cannot hold them all.
-        start = (start + (Count - count)) % _buffer.Length;
-
-        var firstRun = Math.Min(count, _buffer.Length - start);
-        _buffer.AsSpan(start, firstRun).CopyTo(destination);
-
-        if (firstRun < count)
-        {
-            _buffer.AsSpan(0, count - firstRun).CopyTo(destination[firstRun..]);
-        }
-
-        return count;
     }
 
     /// <summary>
@@ -93,19 +128,22 @@ public sealed class HistorySeries
     /// </summary>
     public double? Max()
     {
-        double? max = null;
-        var start = (_head - Count + _buffer.Length) % _buffer.Length;
-
-        for (var i = 0; i < Count; i++)
+        lock (_gate)
         {
-            var value = _buffer[(start + i) % _buffer.Length];
-            if (!float.IsNaN(value) && (max is null || value > max))
-            {
-                max = value;
-            }
-        }
+            double? max = null;
+            var start = (_head - _count + _buffer.Length) % _buffer.Length;
 
-        return max;
+            for (var i = 0; i < _count; i++)
+            {
+                var value = _buffer[(start + i) % _buffer.Length];
+                if (!float.IsNaN(value) && (max is null || value > max))
+                {
+                    max = value;
+                }
+            }
+
+            return max;
+        }
     }
 
     /// <summary>
@@ -116,35 +154,41 @@ public sealed class HistorySeries
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, 1);
 
-        if (capacity == _buffer.Length)
+        lock (_gate)
         {
-            return;
-        }
-
-        var keep = Math.Min(Count, capacity);
-        var replacement = new float[capacity];
-
-        if (keep > 0)
-        {
-            // Take the newest `keep` samples.
-            var start = (_head - keep + _buffer.Length) % _buffer.Length;
-            var firstRun = Math.Min(keep, _buffer.Length - start);
-            _buffer.AsSpan(start, firstRun).CopyTo(replacement);
-
-            if (firstRun < keep)
+            if (capacity == _buffer.Length)
             {
-                _buffer.AsSpan(0, keep - firstRun).CopyTo(replacement.AsSpan(firstRun));
+                return;
             }
-        }
 
-        _buffer = replacement;
-        Count = keep;
-        _head = keep % capacity;
+            var keep = Math.Min(_count, capacity);
+            var replacement = new float[capacity];
+
+            if (keep > 0)
+            {
+                // Take the newest `keep` samples.
+                var start = (_head - keep + _buffer.Length) % _buffer.Length;
+                var firstRun = Math.Min(keep, _buffer.Length - start);
+                _buffer.AsSpan(start, firstRun).CopyTo(replacement);
+
+                if (firstRun < keep)
+                {
+                    _buffer.AsSpan(0, keep - firstRun).CopyTo(replacement.AsSpan(firstRun));
+                }
+            }
+
+            _buffer = replacement;
+            _count = keep;
+            _head = keep % capacity;
+        }
     }
 
     public void Clear()
     {
-        Count = 0;
-        _head = 0;
+        lock (_gate)
+        {
+            _count = 0;
+            _head = 0;
+        }
     }
 }

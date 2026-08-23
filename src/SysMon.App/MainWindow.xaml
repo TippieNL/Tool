@@ -7,6 +7,7 @@
         xmlns:views="clr-namespace:SysMon.App.Views"
         xmlns:conv="clr-namespace:SysMon.App.Converters"
         Title="Pulse Monitor"
+        Icon="app.ico"
         Width="1080"
         Height="720"
         MinWidth="720"
@@ -43,6 +44,7 @@
         <!-- Tray icon. Lives with the window so close-to-tray, which only hides the window,
              keeps it alive. -->
         <tb:TaskbarIcon x:Name="TrayIcon"
+                        IconSource="app.ico"
                         ToolTipText="Pulse Monitor"
                         MenuActivation="RightClick"
                         NoLeftClickDelay="True"
