@@ -49,6 +49,15 @@ public class ViewBindingTests
             Dispatcher.CurrentDispatcher);
     }
 
+    /// <summary>
+    /// Returns the window's content tree.
+    ///
+    /// A Window only realises its visual tree once it is shown, and a CI runner is no place to
+    /// open windows, so the tests measure the content directly. That is still the real
+    /// MainWindow.xaml markup, including the page host whose binding is under test.
+    /// </summary>
+    private static FrameworkElement ContentOf(Window window) => (FrameworkElement)window.Content;
+
     private static void Render(FrameworkElement element)
     {
         // A binding is only evaluated once its element is measured, so layout has to be forced.
@@ -111,12 +120,18 @@ public class ViewBindingTests
             viewModel.CurrentPage = page;
 
             var window = new MainWindow { DataContext = viewModel };
-            Render(window);
+            var root = ContentOf(window);
+            Render(root);
 
-            var view = FindDescendant<UserControl>(window);
+            Assert.True(root.DataContext is not null, "The test harness failed to supply a DataContext.");
 
+            var view = FindDescendant<UserControl>(root);
             Assert.True(view is not null, $"No page was rendered for {page}.");
-            Assert.Same(viewModel, view!.DataContext);
+
+            // The invariant that broke: the page host must hand its own DataContext to the page.
+            // Comparing against the host rather than the view model keeps this independent of how
+            // the harness attaches the context.
+            Assert.Same(root.DataContext, view!.DataContext);
         });
     }
 
@@ -137,7 +152,7 @@ public class ViewBindingTests
             viewModel.CurrentPage = page;
 
             var window = new MainWindow { DataContext = viewModel };
-            Render(window);
+            Render(ContentOf(window));
 
             Assert.True(
                 scope.Errors.Count == 0,
@@ -171,9 +186,12 @@ public class ViewBindingTests
             });
 
             var window = new MainWindow { DataContext = viewModel };
-            Render(window);
+            var root = ContentOf(window);
+            Render(root);
 
-            var rendered = FindDescendants<TextBlock>(window).Select(static t => t.Text).ToList();
+            var rendered = FindDescendants<TextBlock>(root).Select(static t => t.Text).ToList();
+
+            Assert.True(rendered.Count > 0, "Nothing rendered, so this asserts nothing.");
 
             Assert.Contains("TEST-PC", rendered);
             Assert.Contains(rendered, text => text.Contains("Windows 11", StringComparison.Ordinal));
