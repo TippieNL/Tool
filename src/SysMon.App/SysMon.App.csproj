@@ -25,7 +25,13 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
-    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <!--
+      System.Drawing.Common is deliberately not referenced here. It ships inside the Windows
+      Desktop framework that this project already targets, and referencing it explicitly makes
+      the .NET 10 SDK raise NU1510 ("will not be pruned"), which fails the build under
+      TreatWarningsAsErrors. The GDI types used by the tray icon renderer resolve from the
+      framework itself.
+    -->
   </ItemGroup>
 
   <ItemGroup>

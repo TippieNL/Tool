@@ -1,0 +1,42 @@
+name: Build
+
+# Builds on Windows, which is the only place that fully validates this project: the
+# restore-time package pruning check (NU1510) and the Windows framework references
+# behave differently when cross-targeting from another OS, so a Linux build can pass
+# while a real Windows build fails.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Tool.slnx
+
+      - name: Build
+        run: dotnet build Tool.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test Tool.slnx -c Release --no-build --verbosity normal
+
+      # Proves the app actually packages into a runnable single file, not just that it compiles.
+      - name: Publish
+        run: dotnet publish src/SysMon.App/SysMon.App.csproj -c Release /p:PublishProfile=SelfContained
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PulseMonitor
+          path: publish/self-contained/PulseMonitor.exe
+          if-no-files-found: error
