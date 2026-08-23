@@ -66,9 +66,9 @@ public sealed class TemperatureProvider : IMetricProvider
                 continue;
             }
 
-            // Some boards expose unpopulated header sensors that read zero or nonsense.
-            // Anything outside a plausible physical range is treated as absent.
-            if (sensor.Value is not { } value || float.IsNaN(value) || value <= -50 || value > 150)
+            // Unpopulated board headers and unreachable drivers both report values no running
+            // machine could produce, so anything outside the plausible range is treated as absent.
+            if (sensor.Value is not { } value || !SensorRanges.Temperature.Contains(value))
             {
                 continue;
             }

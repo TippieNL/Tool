@@ -258,9 +258,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         Settings.UpdateNetworkInterfaces(snapshot.Network.AvailableInterfaces);
 
+        // Show the hint whenever any driver-backed CPU sensor is missing, not just temperature.
+        // Keying it solely on temperature meant an implausible reading counted as success and
+        // suppressed the very explanation the user needed.
         ShowElevationHint = snapshot.LimitedSensorAccess
             && !ElevationHintDismissed
-            && snapshot.Cpu.TemperatureC is null;
+            && (snapshot.Cpu.TemperatureC is null
+                || snapshot.Cpu.ClockMhz is null
+                || snapshot.Cpu.PackagePowerW is null);
 
         HasFaults = snapshot.FaultedProviders.Count > 0;
         StatusText = HasFaults

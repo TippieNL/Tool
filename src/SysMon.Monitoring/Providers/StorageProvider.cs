@@ -82,10 +82,10 @@ public sealed class StorageProvider : IMetricProvider
                 UsedPercent = total is { } capacity && capacity > 0 && used is { } u
                     ? Math.Clamp(u / capacity * 100d, 0, 100)
                     : null,
-                ReadBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, "Read Rate"),
-                WriteBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, "Write Rate"),
-                ActivityPercent = HardwareSession.ReadSensor(hardware, SensorType.Load, "Total Activity", "Activity"),
-                TemperatureC = HardwareSession.ReadSensor(hardware, SensorType.Temperature, "Temperature"),
+                ReadBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, SensorRanges.Bytes, "Read Rate"),
+                WriteBytesPerSecond = HardwareSession.ReadSensor(hardware, SensorType.Throughput, SensorRanges.Bytes, "Write Rate"),
+                ActivityPercent = HardwareSession.ReadSensor(hardware, SensorType.Load, SensorRanges.Percent, "Total Activity", "Activity"),
+                TemperatureC = HardwareSession.ReadSensor(hardware, SensorType.Temperature, SensorRanges.Temperature, "Temperature"),
                 MediaType = DetectMediaType(hardware),
             });
         }

@@ -73,14 +73,17 @@ public sealed class CpuProvider : IMetricProvider
 
             // Highest per-core clock reads as "what the CPU is doing right now" far better than
             // an average across cores that are parked.
-            clock ??= HardwareSession.MaxSensor(hardware, SensorType.Clock, "Core");
+            clock ??= HardwareSession.MaxSensor(hardware, SensorType.Clock, SensorRanges.Clock, "Core");
 
             // Ryzen exposes Tdie/Tctl; Intel exposes a package sensor. Try the specific names
             // first and fall back to any temperature sensor the CPU offers.
+            // Ryzen X-series parts apply a 10 degree Tctl offset, so a failed read arrives as
+            // -10 rather than as an error. The range rejects it and the card shows N/A.
             temperature ??= HardwareSession.ReadSensor(
-                hardware, SensorType.Temperature, "Tdie", "Tctl", "Package", "Core Average", "Core Max", "CPU");
+                hardware, SensorType.Temperature, SensorRanges.Temperature,
+                "Tdie", "Tctl", "Package", "Core Average", "Core Max", "CPU");
 
-            power ??= HardwareSession.ReadSensor(hardware, SensorType.Power, "Package", "CPU Package");
+            power ??= HardwareSession.ReadSensor(hardware, SensorType.Power, SensorRanges.Power, "Package", "CPU Package");
 
             break;
         }

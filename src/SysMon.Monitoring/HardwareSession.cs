@@ -2,6 +2,7 @@ using System.Security.Principal;
 using LibreHardwareMonitor.Hardware;
 using SysMon.Core.Configuration;
 using SysMon.Core.Diagnostics;
+using SysMon.Core.Monitoring;
 
 namespace SysMon.Monitoring;
 
@@ -164,43 +165,16 @@ public sealed class HardwareSession : IDisposable
         }
     }
 
-    /// <summary>First sensor of a type whose name contains one of the given fragments.</summary>
-    public static ISensor? FindSensor(IHardware hardware, SensorType type, params string[] nameFragments)
-    {
-        ISensor? fallback = null;
-
-        foreach (var sensor in hardware.Sensors)
-        {
-            if (sensor.SensorType != type)
-            {
-                continue;
-            }
-
-            if (nameFragments.Length == 0)
-            {
-                return sensor;
-            }
-
-            foreach (var fragment in nameFragments)
-            {
-                if (sensor.Name.Contains(fragment, StringComparison.OrdinalIgnoreCase))
-                {
-                    return sensor;
-                }
-            }
-
-            // Remember any sensor of the right type in case no name matches.
-            fallback ??= sensor;
-        }
-
-        return fallback;
-    }
-
     /// <summary>
-    /// Value of the first matching sensor, or null. Named fragments are tried in order, so
-    /// callers can express "prefer Tdie, fall back to any temperature".
+    /// Value of the first matching sensor that falls inside <paramref name="range"/>, or null.
+    /// Named fragments are tried in order, so callers can express "prefer Tdie, fall back to any
+    /// temperature".
+    ///
+    /// Implausible readings are skipped rather than returned, so a sensor that is failing does not
+    /// mask a working one further down the list, and a value that reaches a card is one the
+    /// hardware could actually have produced.
     /// </summary>
-    public static double? ReadSensor(IHardware hardware, SensorType type, params string[] nameFragments)
+    public static double? ReadSensor(IHardware hardware, SensorType type, SensorRange range, params string[] nameFragments)
     {
         foreach (var fragment in nameFragments)
         {
@@ -208,17 +182,17 @@ public sealed class HardwareSession : IDisposable
             {
                 if (sensor.SensorType == type &&
                     sensor.Name.Contains(fragment, StringComparison.OrdinalIgnoreCase) &&
-                    sensor.Value is { } value && !float.IsNaN(value))
+                    sensor.Value is { } value && range.Contains(value))
                 {
                     return value;
                 }
             }
         }
 
-        // No preferred name matched: accept any sensor of the right type that has a value.
+        // No preferred name matched: accept any sensor of the right type with a plausible value.
         foreach (var sensor in hardware.Sensors)
         {
-            if (sensor.SensorType == type && sensor.Value is { } value && !float.IsNaN(value))
+            if (sensor.SensorType == type && sensor.Value is { } value && range.Contains(value))
             {
                 return value;
             }
@@ -227,14 +201,14 @@ public sealed class HardwareSession : IDisposable
         return null;
     }
 
-    /// <summary>Highest value among the sensors of a type. Used for "fastest core clock".</summary>
-    public static double? MaxSensor(IHardware hardware, SensorType type, params string[] nameFragments)
+    /// <summary>Highest plausible value among the sensors of a type. Used for "fastest core clock".</summary>
+    public static double? MaxSensor(IHardware hardware, SensorType type, SensorRange range, params string[] nameFragments)
     {
         double? max = null;
 
         foreach (var sensor in hardware.Sensors)
         {
-            if (sensor.SensorType != type || sensor.Value is not { } value || float.IsNaN(value))
+            if (sensor.SensorType != type || sensor.Value is not { } value || !range.Contains(value))
             {
                 continue;
             }

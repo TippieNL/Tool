@@ -53,13 +53,13 @@ public sealed class GpuProvider : IMetricProvider
                 Key = $"{hardware.Identifier}#{index++}",
                 Name = hardware.Name,
                 Vendor = vendor,
-                Load = HardwareSession.ReadSensor(hardware, SensorType.Load, "GPU Core", "D3D 3D", "Core"),
-                TemperatureC = HardwareSession.ReadSensor(hardware, SensorType.Temperature, "GPU Core", "GPU Hot Spot", "Core", "GPU"),
-                CoreClockMhz = HardwareSession.ReadSensor(hardware, SensorType.Clock, "GPU Core", "Core"),
+                Load = HardwareSession.ReadSensor(hardware, SensorType.Load, SensorRanges.Percent, "GPU Core", "D3D 3D", "Core"),
+                TemperatureC = HardwareSession.ReadSensor(hardware, SensorType.Temperature, SensorRanges.Temperature, "GPU Core", "GPU Hot Spot", "Core", "GPU"),
+                CoreClockMhz = HardwareSession.ReadSensor(hardware, SensorType.Clock, SensorRanges.Clock, "GPU Core", "Core"),
                 VramUsedBytes = vramUsed,
                 VramTotalBytes = vramTotal,
-                PowerW = HardwareSession.ReadSensor(hardware, SensorType.Power, "GPU Package", "GPU Power", "Package"),
-                FanPercent = HardwareSession.ReadSensor(hardware, SensorType.Control, "GPU Fan", "Fan"),
+                PowerW = HardwareSession.ReadSensor(hardware, SensorType.Power, SensorRanges.Power, "GPU Package", "GPU Power", "Package"),
+                FanPercent = HardwareSession.ReadSensor(hardware, SensorType.Control, SensorRanges.Percent, "GPU Fan", "Fan"),
             });
         }
 
@@ -81,13 +81,13 @@ public sealed class GpuProvider : IMetricProvider
     {
         const double MegabytesToBytes = 1024d * 1024d;
 
-        var usedMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, "GPU Memory Used", "D3D Dedicated Memory Used", "Memory Used");
-        var totalMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, "GPU Memory Total", "Memory Total");
+        var usedMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, SensorRanges.Bytes, "GPU Memory Used", "D3D Dedicated Memory Used", "Memory Used");
+        var totalMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, SensorRanges.Bytes, "GPU Memory Total", "Memory Total");
 
         // Some drivers report only free and total; derive used from those when needed.
         if (usedMb is null && totalMb is { } total)
         {
-            var freeMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, "GPU Memory Free", "Memory Free");
+            var freeMb = HardwareSession.ReadSensor(hardware, SensorType.SmallData, SensorRanges.Bytes, "GPU Memory Free", "Memory Free");
             if (freeMb is { } free)
             {
                 usedMb = Math.Max(0, total - free);
