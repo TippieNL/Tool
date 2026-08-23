@@ -200,16 +200,36 @@ public partial class DriveViewModel : ObservableObject
     [ObservableProperty]
     public partial string MediaType { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Whether the drive actually reports a temperature. Bound to visibility so an unavailable
+    /// reading is simply absent rather than a row of "N/A" competing with the real figures.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasTemperature { get; set; }
+
+    /// <summary>Whether throughput is being reported, for the same reason.</summary>
+    [ObservableProperty]
+    public partial bool HasThroughput { get; set; }
+
     public void Update(DriveSnapshot drive, TemperatureUnit unit)
     {
         Name = Format.TextOrNotAvailable(drive.MountPoint ?? drive.Label);
-        Model = Format.TextOrNotAvailable(drive.Model ?? drive.Label);
+
+        // Describe the drive with whatever adds information beyond the letter already shown.
+        // An unlabelled volume has nothing to add, and repeating "C:\  C:\" is just noise.
+        var description = drive.Model
+            ?? (string.Equals(drive.Label, drive.MountPoint, StringComparison.OrdinalIgnoreCase) ? null : drive.Label);
+
+        Model = description ?? string.Empty;
         Usage = Format.UsedOfTotal(drive.UsedBytes, drive.TotalBytes);
         Free = Format.Bytes(drive.FreeBytes) + " free";
         UsedPercent = drive.UsedPercent;
         ReadRate = Format.BytesPerSecond(drive.ReadBytesPerSecond);
         WriteRate = Format.BytesPerSecond(drive.WriteBytesPerSecond);
         Temperature = Format.Temperature(drive.TemperatureC, unit);
+
+        HasTemperature = drive.TemperatureC is not null;
+        HasThroughput = drive.ReadBytesPerSecond is not null || drive.WriteBytesPerSecond is not null;
 
         MediaType = drive.MediaType switch
         {

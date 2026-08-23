@@ -17,6 +17,28 @@
 
     <ScrollViewer Padding="0,0,10,0">
         <StackPanel Margin="0,0,4,16">
+            <!-- Always visible: without it, a page of unreadable sensors looks like a broken app. -->
+            <Border Margin="0,0,12,10" Padding="14,10" CornerRadius="8"
+                    Background="{StaticResource SurfaceOverlayBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasFullSensorAccess}" Value="False">
+                                        <Setter Property="Fill" Value="{StaticResource WarnBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Margin="10,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Style="{StaticResource BodyText}" Text="{Binding SensorAccessSummary}" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource Card}" Margin="0,0,12,10">
                 <StackPanel>
                     <Grid Margin="0,0,0,10">
@@ -29,7 +51,7 @@
                     <TextBlock Style="{StaticResource BodyText}"
                                TextWrapping="Wrap"
                                Visibility="{Binding Temperatures.IsAvailable, Converter={StaticResource Hidden}}"
-                               Text="No temperature sensors are readable on this system. Most motherboard and CPU sensors require administrator rights; GPU sensors depend on the installed driver." />
+                               Text="{Binding SensorAccessSummary}" />
 
                     <ItemsControl ItemsSource="{Binding Temperatures.Sensors}"
                                   Visibility="{Binding Temperatures.IsAvailable, Converter={StaticResource Visible}}">
@@ -94,6 +116,7 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
                                         <Grid Grid.Row="0">
                                             <Grid.ColumnDefinitions>
@@ -102,20 +125,41 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Style="{StaticResource MetricValue}" Text="{Binding Name}" />
-                                            <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Margin="10,0,0,0"
-                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Model}" />
-                                            <TextBlock Grid.Column="2" Style="{StaticResource MetricValue}" Text="{Binding Temperature}" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <Border Padding="4,1" CornerRadius="3" VerticalAlignment="Center"
+                                                        Background="{StaticResource SurfaceRaisedBrush}"
+                                                        Visibility="{Binding MediaType, Converter={StaticResource Visible}}">
+                                                    <TextBlock FontSize="9" FontFamily="{StaticResource UiFont}"
+                                                               Foreground="{StaticResource TextTertiaryBrush}" Text="{Binding MediaType}" />
+                                                </Border>
+                                                <TextBlock Style="{StaticResource MetricLabel}" Margin="8,0,0,0"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           Visibility="{Binding Model, Converter={StaticResource Visible}}"
+                                                           Text="{Binding Model}" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Style="{StaticResource MetricValue}"
+                                                       Visibility="{Binding HasTemperature, Converter={StaticResource Visible}}"
+                                                       Text="{Binding Temperature}" />
                                         </Grid>
-                                        <Grid Grid.Row="1" Margin="0,6,0,0">
+                                        <ProgressBar Grid.Row="1" Style="{StaticResource MetricBar}" Margin="0,8,0,0"
+                                                     Value="{Binding UsedPercent, Mode=OneWay, TargetNullValue=0}"
+                                                     Foreground="{Binding UsedPercent, Converter={StaticResource TempBrush}}" />
+                                        <Grid Grid.Row="2" Margin="0,6,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Usage}" />
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource MetricLabel}" Text="{Binding Usage}" />
+                                                <TextBlock Style="{StaticResource MetricLabel}" Margin="10,0,0,0"
+                                                           Foreground="{StaticResource TextTertiaryBrush}" Text="{Binding Free}" />
+                                            </StackPanel>
                                             <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Margin="0,0,14,0"
+                                                       Visibility="{Binding HasThroughput, Converter={StaticResource Visible}}"
                                                        Text="{Binding ReadRate, StringFormat='R {0}'}" />
                                             <TextBlock Grid.Column="2" Style="{StaticResource MetricLabel}"
+                                                       Visibility="{Binding HasThroughput, Converter={StaticResource Visible}}"
                                                        Text="{Binding WriteRate, StringFormat='W {0}'}" />
                                         </Grid>
                                     </Grid>

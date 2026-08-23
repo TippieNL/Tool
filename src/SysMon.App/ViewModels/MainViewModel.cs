@@ -125,6 +125,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool CanRestartElevated { get; set; }
 
+    /// <summary>
+    /// Short description of how much hardware is readable, shown on the Sensors page. Unlike the
+    /// banner this is always present and cannot be dismissed, so a page full of unavailable
+    /// readings always carries its own explanation.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SensorAccessSummary { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasFullSensorAccess { get; set; } = true;
+
     [ObservableProperty]
     public partial bool ElevationHintDismissed { get; set; }
 
@@ -282,6 +293,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     private void UpdateSensorAccessHint(Snapshot snapshot)
     {
+        HasFullSensorAccess = snapshot.SensorAccess == SensorAccess.Full;
+
+        SensorAccessSummary = snapshot.SensorAccess switch
+        {
+            SensorAccess.Full => "All available sensors are being read.",
+            SensorAccess.NotElevated =>
+                "Running as a standard user. CPU and motherboard sensors need administrator rights.",
+            SensorAccess.DriverUnavailable =>
+                "The hardware sensor driver could not load, so CPU and motherboard sensors are "
+                + "unreadable. This is usually Windows Memory Integrity blocking it.",
+            SensorAccess.MonitoringDisabled =>
+                "Hardware sensor monitoring is turned off in Settings.",
+            _ => string.Empty,
+        };
+
         var missingCpuSensors = snapshot.Cpu.TemperatureC is null
             || snapshot.Cpu.ClockMhz is null
             || snapshot.Cpu.PackagePowerW is null;
