@@ -1,0 +1,85 @@
+<UserControl x:Class="SysMon.App.Views.SystemView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <!-- Label/value pair used throughout this page. -->
+        <Style x:Key="InfoLabel" TargetType="TextBlock" BasedOn="{StaticResource MetricLabel}">
+            <Setter Property="Width" Value="150" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="InfoValue" TargetType="TextBlock" BasedOn="{StaticResource MetricValue}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="0,0,10,0">
+        <StackPanel Margin="0,0,4,16">
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="System" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Host name" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.HostName}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Operating system" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.OperatingSystem}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Uptime" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Uptime}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Privileges" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Elevation}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Hardware" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Processor" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Processor}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Cores" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Cores}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Installed memory" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Memory}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="Motherboard" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Motherboard}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource InfoLabel}" Text="BIOS version" />
+                        <TextBlock Style="{StaticResource InfoValue}" Text="{Binding System.Bios}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Graphics" />
+                    <ItemsControl ItemsSource="{Binding Gpus}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Style="{StaticResource InfoLabel}" Text="{Binding Title}" />
+                                    <TextBlock Style="{StaticResource InfoValue}" Text="{Binding Subtitle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

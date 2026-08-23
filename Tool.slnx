@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SysMon.App/SysMon.App.csproj" />
+    <Project Path="src/SysMon.Core/SysMon.Core.csproj" />
+    <Project Path="src/SysMon.Monitoring/SysMon.Monitoring.csproj" />
+    <Project Path="src/SysMon.Probe/SysMon.Probe.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SysMon.Core.Tests/SysMon.Core.Tests.csproj" />
+  </Folder>
+</Solution>

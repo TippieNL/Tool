@@ -1,0 +1,251 @@
+<Window x:Class="SysMon.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
+        xmlns:vm="clr-namespace:SysMon.App.ViewModels"
+        xmlns:views="clr-namespace:SysMon.App.Views"
+        xmlns:conv="clr-namespace:SysMon.App.Converters"
+        Title="Pulse Monitor"
+        Width="1080"
+        Height="720"
+        MinWidth="720"
+        MinHeight="520"
+        Background="{StaticResource SurfaceBaseBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+
+    <shell:WindowChrome.WindowChrome>
+        <!-- Custom chrome: the app draws its own title bar, but keeps native resize and snap. -->
+        <shell:WindowChrome CaptionHeight="40"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <conv:VisibilityConverter x:Key="Visible" />
+        <conv:VisibilityConverter x:Key="Hidden" Invert="True" />
+        <conv:EnumMatchConverter x:Key="EnumMatch" />
+
+        <Style x:Key="TrayMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="{StaticResource SurfaceOverlayBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Tray icon. Lives with the window so close-to-tray, which only hides the window,
+             keeps it alive. -->
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        ToolTipText="Pulse Monitor"
+                        MenuActivation="RightClick"
+                        NoLeftClickDelay="True"
+                        TrayLeftMouseDown="OnTrayLeftClick">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu Style="{StaticResource TrayMenuStyle}">
+                    <MenuItem Header="Open" Click="OnTrayOpen" FontWeight="SemiBold" />
+                    <Separator />
+                    <MenuItem x:Name="TrayMonitoringItem" Header="Start monitoring" Click="OnTrayToggleMonitoring" />
+                    <MenuItem Header="Settings" Click="OnTraySettings" />
+                    <Separator />
+                    <MenuItem Header="Exit" Click="OnTrayExit" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Grid Grid.Row="0" Background="{StaticResource SurfaceBaseBrush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <Border Width="10" Height="10" CornerRadius="5" Background="{StaticResource AccentBrush}" />
+                    <TextBlock Text="Pulse Monitor"
+                               Margin="10,0,0,0"
+                               FontFamily="{StaticResource UiFont}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StatusText}"
+                               Margin="16,0,0,0"
+                               FontFamily="{StaticResource UiFont}"
+                               FontSize="11"
+                               Foreground="{StaticResource TextTertiaryBrush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Style="{StaticResource CaptionButton}" Content="&#xE921;" Click="OnMinimize" ToolTip="Minimise" />
+                    <Button Style="{StaticResource CaptionButton}" Content="&#xE922;" Click="OnMaximize" ToolTip="Maximise" />
+                    <Button Style="{StaticResource CloseButton}" Content="&#xE8BB;" Click="OnClose" ToolTip="Close" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Body: navigation rail plus the active page -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="188" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,8,0,0">
+                    <RadioButton Style="{StaticResource NavButton}" Tag="&#xE80F;" Content="Dashboard"
+                                 IsChecked="{Binding CurrentPage, Mode=TwoWay, Converter={StaticResource EnumMatch}, ConverterParameter=Dashboard}" />
+                    <RadioButton Style="{StaticResource NavButton}" Tag="&#xE9D2;" Content="Performance"
+                                 IsChecked="{Binding CurrentPage, Mode=TwoWay, Converter={StaticResource EnumMatch}, ConverterParameter=Performance}" />
+                    <RadioButton Style="{StaticResource NavButton}" Tag="&#xE9CA;" Content="Sensors"
+                                 IsChecked="{Binding CurrentPage, Mode=TwoWay, Converter={StaticResource EnumMatch}, ConverterParameter=Sensors}" />
+                    <RadioButton Style="{StaticResource NavButton}" Tag="&#xE770;" Content="System"
+                                 IsChecked="{Binding CurrentPage, Mode=TwoWay, Converter={StaticResource EnumMatch}, ConverterParameter=System}" />
+                    <RadioButton Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Settings"
+                                 IsChecked="{Binding CurrentPage, Mode=TwoWay, Converter={StaticResource EnumMatch}, ConverterParameter=Settings}" />
+                </StackPanel>
+
+                <Grid Grid.Column="1" Margin="0,0,4,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Shown only when the sensor library loaded but temperatures need elevation -->
+                    <Border Grid.Row="0"
+                            Margin="0,8,16,4"
+                            Padding="14,10"
+                            CornerRadius="8"
+                            Background="{StaticResource SurfaceOverlayBrush}"
+                            BorderBrush="{StaticResource BorderStrongBrush}"
+                            BorderThickness="1"
+                            Visibility="{Binding ShowElevationHint, Converter={StaticResource Visible}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       Style="{StaticResource BodyText}"
+                                       Text="Some sensors need administrator rights. CPU temperature, package power and motherboard sensors are unavailable in this session." />
+                            <Button Grid.Column="1"
+                                    Margin="12,0,8,0"
+                                    Style="{StaticResource AccentButton}"
+                                    Content="Restart as admin"
+                                    Command="{Binding RestartElevatedCommand}" />
+                            <Button Grid.Column="2"
+                                    Style="{StaticResource GhostButton}"
+                                    Content="Dismiss"
+                                    Command="{Binding DismissElevationHintCommand}" />
+                        </Grid>
+                    </Border>
+
+                    <ContentControl Grid.Row="1" Margin="0,4,0,0">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="Dashboard">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate><views:DashboardView /></DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="Performance">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate><views:PerformanceView /></DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="Sensors">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate><views:SensorsView /></DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="System">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate><views:SystemView /></DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding CurrentPage}" Value="Settings">
+                                        <Setter Property="ContentTemplate">
+                                            <Setter.Value>
+                                                <DataTemplate><views:SettingsView /></DataTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
+                </Grid>
+            </Grid>
+
+            <!-- Status strip -->
+            <Border Grid.Row="2"
+                    Background="{StaticResource SurfaceRaisedBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="16,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource OkBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMonitoring}" Value="False">
+                                            <Setter Property="Fill" Value="{StaticResource TextTertiaryBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasFaults}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource WarnBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{StaticResource UiFont}"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextTertiaryBrush}"
+                                   Text="{Binding StatusText}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="2"
+                               VerticalAlignment="Center"
+                               FontFamily="{StaticResource UiFont}"
+                               FontSize="11"
+                               Foreground="{StaticResource TextTertiaryBrush}"
+                               Text="{Binding System.Uptime, StringFormat='Uptime {0}'}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

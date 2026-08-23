@@ -1,0 +1,223 @@
+<UserControl x:Class="SysMon.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:SysMon.App.Converters">
+
+    <UserControl.Resources>
+        <conv:VisibilityConverter x:Key="Visible" />
+
+        <!-- Every setting is applied and saved the moment it changes; there is no Save button. -->
+        <Style x:Key="SettingToggle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="SettingRow" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="SettingLabel" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="SettingHint" TargetType="TextBlock" BasedOn="{StaticResource MetricLabel}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,-4,0,10" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Width" Value="180" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="0,0,10,0">
+        <StackPanel Margin="0,0,4,16" MaxWidth="620" HorizontalAlignment="Left">
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Startup and window" />
+
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Start with Windows"
+                              IsChecked="{Binding Settings.StartWithWindows}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Foreground="{StaticResource CriticalBrush}"
+                               Visibility="{Binding Settings.StartupError, Converter={StaticResource Visible}}"
+                               Text="{Binding Settings.StartupError}" />
+
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Start minimised to the tray"
+                              IsChecked="{Binding Settings.StartMinimized}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Minimise to tray"
+                              IsChecked="{Binding Settings.MinimizeToTray}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Close to tray"
+                              IsChecked="{Binding Settings.CloseToTray}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Monitoring" />
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <TextBlock Style="{StaticResource SettingLabel}" Text="Update interval" />
+                        <ComboBox ItemsSource="{Binding Settings.IntervalOptions}"
+                                  SelectedItem="{Binding Settings.UpdateIntervalMs}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat='{}{0} ms'}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="A shorter interval reacts faster but costs more CPU. The app halves its rate automatically while hidden in the tray." />
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <TextBlock Style="{StaticResource SettingLabel}" Text="Graph history" />
+                        <ComboBox ItemsSource="{Binding Settings.HistoryOptions}"
+                                  SelectedItem="{Binding Settings.GraphHistorySeconds}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat='{}{0} seconds'}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <TextBlock Style="{StaticResource SettingLabel}" Text="Temperature unit" />
+                        <ComboBox ItemsSource="{Binding Settings.TemperatureUnitOptions}"
+                                  SelectedItem="{Binding Settings.TemperatureUnit}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Sensors" />
+
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Enable hardware sensor monitoring"
+                              IsChecked="{Binding Settings.EnableHardwareMonitoring}" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="Turning this off stops all temperature, clock, power and GPU readings. CPU load, memory, disk space and network keep working through the operating system." />
+
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="CPU sensors"
+                              IsEnabled="{Binding Settings.EnableHardwareMonitoring}"
+                              IsChecked="{Binding Settings.EnableCpuSensors}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="GPU sensors"
+                              IsEnabled="{Binding Settings.EnableHardwareMonitoring}"
+                              IsChecked="{Binding Settings.EnableGpuSensors}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Memory sensors"
+                              IsEnabled="{Binding Settings.EnableHardwareMonitoring}"
+                              IsChecked="{Binding Settings.EnableMemorySensors}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Storage sensors"
+                              IsEnabled="{Binding Settings.EnableHardwareMonitoring}"
+                              IsChecked="{Binding Settings.EnableStorageSensors}" />
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Motherboard sensors"
+                              IsEnabled="{Binding Settings.EnableHardwareMonitoring}"
+                              IsChecked="{Binding Settings.EnableMotherboardSensors}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="System tray" />
+
+                    <CheckBox Style="{StaticResource SettingToggle}" Content="Show a live figure on the tray icon"
+                              IsChecked="{Binding Settings.EnableTrayStats}" />
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <TextBlock Style="{StaticResource SettingLabel}" Text="Tray figure" />
+                        <ComboBox ItemsSource="{Binding Settings.TrayStatOptions}"
+                                  IsEnabled="{Binding Settings.EnableTrayStats}"
+                                  SelectedItem="{Binding Settings.TrayStat}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Alerts" />
+                    <TextBlock Style="{StaticResource SettingHint}"
+                               Text="A Windows notification is shown when a threshold is exceeded, then at most once every few minutes while it stays exceeded." />
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <CheckBox Style="{StaticResource SettingToggle}" Margin="0" Content="CPU temperature above"
+                                  IsChecked="{Binding Settings.AlertCpuTemperatureEnabled}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Slider Width="160" Minimum="40" Maximum="110" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding Settings.AlertCpuTemperatureEnabled}"
+                                    Value="{Binding Settings.AlertCpuTemperatureThreshold}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource MetricValue}" Width="46" Margin="10,0,0,0" TextAlignment="Right"
+                                       Text="{Binding Settings.AlertCpuTemperatureThreshold, StringFormat='{}{0:F0} °C'}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <CheckBox Style="{StaticResource SettingToggle}" Margin="0" Content="GPU temperature above"
+                                  IsChecked="{Binding Settings.AlertGpuTemperatureEnabled}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Slider Width="160" Minimum="40" Maximum="110" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding Settings.AlertGpuTemperatureEnabled}"
+                                    Value="{Binding Settings.AlertGpuTemperatureThreshold}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource MetricValue}" Width="46" Margin="10,0,0,0" TextAlignment="Right"
+                                       Text="{Binding Settings.AlertGpuTemperatureThreshold, StringFormat='{}{0:F0} °C'}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <CheckBox Style="{StaticResource SettingToggle}" Margin="0" Content="Memory usage above"
+                                  IsChecked="{Binding Settings.AlertMemoryEnabled}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Slider Width="160" Minimum="50" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding Settings.AlertMemoryEnabled}"
+                                    Value="{Binding Settings.AlertMemoryThreshold}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource MetricValue}" Width="46" Margin="10,0,0,0" TextAlignment="Right"
+                                       Text="{Binding Settings.AlertMemoryThreshold, StringFormat='{}{0:F0} %'}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <CheckBox Style="{StaticResource SettingToggle}" Margin="0" Content="Storage usage above"
+                                  IsChecked="{Binding Settings.AlertStorageEnabled}" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Slider Width="160" Minimum="50" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding Settings.AlertStorageEnabled}"
+                                    Value="{Binding Settings.AlertStorageThreshold}" VerticalAlignment="Center" />
+                            <TextBlock Style="{StaticResource MetricValue}" Width="46" Margin="10,0,0,0" TextAlignment="Right"
+                                       Text="{Binding Settings.AlertStorageThreshold, StringFormat='{}{0:F0} %'}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Diagnostics" />
+
+                    <Grid Style="{StaticResource SettingRow}">
+                        <TextBlock Style="{StaticResource SettingLabel}" Text="Log level" />
+                        <ComboBox ItemsSource="{Binding Settings.LogLevelOptions}"
+                                  SelectedItem="{Binding Settings.LogLevel}" />
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource SettingHint}" Text="{Binding Settings.SettingsFilePath, StringFormat='Settings: {0}'}" />
+                    <TextBlock Style="{StaticResource SettingHint}" Text="{Binding Settings.LogFilePath, StringFormat='Log: {0}'}" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Style="{StaticResource GhostButton}" Content="Open data folder"
+                                Command="{Binding Settings.OpenDataFolderCommand}" />
+                        <Button Style="{StaticResource GhostButton}" Margin="8,0,0,0" Content="Reset to defaults"
+                                Command="{Binding Settings.ResetToDefaultsCommand}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

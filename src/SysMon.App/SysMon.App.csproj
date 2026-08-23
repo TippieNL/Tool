@@ -6,6 +6,7 @@
     <RootNamespace>SysMon.App</RootNamespace>
     <AssemblyName>PulseMonitor</AssemblyName>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWindowsForms>false</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>

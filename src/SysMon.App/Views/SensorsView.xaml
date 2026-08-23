@@ -1,0 +1,130 @@
+<UserControl x:Class="SysMon.App.Views.SensorsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:SysMon.App.Converters">
+
+    <UserControl.Resources>
+        <conv:VisibilityConverter x:Key="Visible" />
+        <conv:VisibilityConverter x:Key="Hidden" Invert="True" />
+
+        <!-- Temperature rows warm from neutral through amber to red. -->
+        <conv:ThresholdBrushConverter x:Key="TempBrush"
+                                      WarnAt="70" CriticalAt="85"
+                                      NormalBrush="{StaticResource TextPrimaryBrush}"
+                                      WarnBrush="{StaticResource WarnBrush}"
+                                      CriticalBrush="{StaticResource CriticalBrush}" />
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="0,0,10,0">
+        <StackPanel Margin="0,0,4,16">
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <Grid Margin="0,0,0,10">
+                        <TextBlock Style="{StaticResource SectionHeading}" Margin="0" Text="Temperature sensors" />
+                        <TextBlock Style="{StaticResource MetricLabel}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Text="{Binding Temperatures.Subtitle}" />
+                    </Grid>
+
+                    <!-- Shown when nothing is readable, which is the normal unelevated result -->
+                    <TextBlock Style="{StaticResource BodyText}"
+                               TextWrapping="Wrap"
+                               Visibility="{Binding Temperatures.IsAvailable, Converter={StaticResource Hidden}}"
+                               Text="No temperature sensors are readable on this system. Most motherboard and CPU sensors require administrator rights; GPU sensors depend on the installed driver." />
+
+                    <ItemsControl ItemsSource="{Binding Temperatures.Sensors}"
+                                  Visibility="{Binding Temperatures.IsAvailable, Converter={StaticResource Visible}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="3*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}"
+                                               Text="{Binding Source}" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CardSubtitle}" FontSize="12" Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource MetricValue}"
+                                               Foreground="{Binding Celsius, Converter={StaticResource TempBrush}}"
+                                               Text="{Binding Value}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Per-thread CPU load" />
+                    <ItemsControl ItemsSource="{Binding Cpu.CoreLoads}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="92" Margin="0,0,10,10" Padding="10,8"
+                                        CornerRadius="8" Background="{StaticResource SurfaceOverlayBrush}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Style="{StaticResource MetricLabel}" Text="{Binding Label, StringFormat='T{0}'}" />
+                                            <TextBlock Style="{StaticResource MetricValue}" FontSize="12" HorizontalAlignment="Right"
+                                                       Text="{Binding Load, StringFormat='{}{0:F0}%'}" />
+                                        </Grid>
+                                        <ProgressBar Style="{StaticResource MetricBar}" Margin="0,6,0,0" Value="{Binding Load, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,12,10">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeading}" Text="Drives" />
+                    <ItemsControl ItemsSource="{Binding Storage.Drives}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,8" Padding="12,10" CornerRadius="8"
+                                        Background="{StaticResource SurfaceOverlayBrush}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource MetricValue}" Text="{Binding Name}" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Margin="10,0,0,0"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Model}" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource MetricValue}" Text="{Binding Temperature}" />
+                                        </Grid>
+                                        <Grid Grid.Row="1" Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Usage}" />
+                                            <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Margin="0,0,14,0"
+                                                       Text="{Binding ReadRate, StringFormat='R {0}'}" />
+                                            <TextBlock Grid.Column="2" Style="{StaticResource MetricLabel}"
+                                                       Text="{Binding WriteRate, StringFormat='W {0}'}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

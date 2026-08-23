@@ -1,0 +1,295 @@
+<UserControl x:Class="SysMon.App.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctl="clr-namespace:SysMon.App.Controls"
+             xmlns:vm="clr-namespace:SysMon.App.ViewModels"
+             xmlns:conv="clr-namespace:SysMon.App.Converters">
+
+    <UserControl.Resources>
+        <conv:VisibilityConverter x:Key="Visible" />
+
+        <conv:ThresholdBrushConverter x:Key="LoadBrush"
+                                      WarnAt="75" CriticalAt="90"
+                                      NormalBrush="{StaticResource AccentBrush}"
+                                      WarnBrush="{StaticResource WarnBrush}"
+                                      CriticalBrush="{StaticResource CriticalBrush}" />
+
+        <!--
+            One template per card type, selected automatically by the item's runtime type.
+            Every card shares the same skeleton: label, model name, one large number,
+            a fill bar and a sparkline.
+        -->
+
+        <DataTemplate DataType="{x:Type vm:CpuCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,0" />
+
+                <Grid Grid.Row="2" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource PrimaryValue}" Text="{Binding PrimaryValue}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,0,4">
+                        <TextBlock Style="{StaticResource MetricValue}" HorizontalAlignment="Right" Text="{Binding Clock}" />
+                        <TextBlock Style="{StaticResource MetricValue}" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Temperature}" />
+                    </StackPanel>
+                </Grid>
+
+                <ProgressBar Grid.Row="3" Style="{StaticResource MetricBar}" VerticalAlignment="Top" Margin="0,8,0,0"
+                             Value="{Binding BarValue, Mode=OneWay, TargetNullValue=0}"
+                             Foreground="{Binding BarValue, Converter={StaticResource LoadBrush}}" />
+
+                <ctl:HistoryGraph Grid.Row="3" Margin="0,20,0,0" Height="52" VerticalAlignment="Bottom"
+                                  LineColor="{StaticResource CpuColor}" Series="{Binding Series}" />
+
+                <Grid Grid.Row="4" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Cores}" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Text="{Binding Power}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:GpuCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,0" />
+
+                <Grid Grid.Row="2" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource PrimaryValue}" Text="{Binding PrimaryValue}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,0,4">
+                        <TextBlock Style="{StaticResource MetricValue}" HorizontalAlignment="Right" Text="{Binding Temperature}" />
+                        <TextBlock Style="{StaticResource MetricValue}" HorizontalAlignment="Right" Margin="0,2,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding Clock}" />
+                    </StackPanel>
+                </Grid>
+
+                <ProgressBar Grid.Row="3" Style="{StaticResource MetricBar}" VerticalAlignment="Top" Margin="0,8,0,0"
+                             Value="{Binding BarValue, Mode=OneWay, TargetNullValue=0}"
+                             Foreground="{StaticResource GpuBrush}" />
+
+                <ctl:HistoryGraph Grid.Row="3" Margin="0,20,0,0" Height="52" VerticalAlignment="Bottom"
+                                  LineColor="{StaticResource GpuColor}" Series="{Binding Series}" />
+
+                <Grid Grid.Row="4" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Vram, StringFormat='{}{0} VRAM'}" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Text="{Binding Power}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:MemoryCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,0" />
+                <TextBlock Grid.Row="2" Style="{StaticResource PrimaryValue}" Margin="0,6,0,0" Text="{Binding PrimaryValue}" />
+
+                <ProgressBar Grid.Row="3" Style="{StaticResource MetricBar}" VerticalAlignment="Top" Margin="0,8,0,0"
+                             Value="{Binding BarValue, Mode=OneWay, TargetNullValue=0}"
+                             Foreground="{Binding BarValue, Converter={StaticResource LoadBrush}}" />
+
+                <ctl:HistoryGraph Grid.Row="3" Margin="0,20,0,0" Height="52" VerticalAlignment="Bottom"
+                                  LineColor="{StaticResource MemoryColor}" Series="{Binding Series}" />
+
+                <Grid Grid.Row="4" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Available, StringFormat='{}{0} free'}" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Text="{Binding Speed}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:StorageCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,6" />
+
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Drives}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,7">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Grid.Row="0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Style="{StaticResource MetricValue}" Text="{Binding Name}" />
+                                        <Border Grid.Column="1" Margin="6,0,0,0" Padding="4,1" VerticalAlignment="Center"
+                                                CornerRadius="3" Background="{StaticResource SurfaceOverlayBrush}"
+                                                Visibility="{Binding MediaType, Converter={StaticResource Visible}}">
+                                            <TextBlock FontSize="9" FontFamily="{StaticResource UiFont}"
+                                                       Foreground="{StaticResource TextTertiaryBrush}" Text="{Binding MediaType}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Style="{StaticResource MetricLabel}" Text="{Binding Usage}" />
+                                    </Grid>
+                                    <ProgressBar Grid.Row="1" Style="{StaticResource MetricBar}" Margin="0,4,0,0"
+                                                 Value="{Binding UsedPercent, Mode=OneWay, TargetNullValue=0}"
+                                                 Foreground="{Binding UsedPercent, Converter={StaticResource LoadBrush}}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:NetworkCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,0" />
+
+                <StackPanel Grid.Row="2" Margin="0,6,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE74B;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                   Foreground="{StaticResource NetworkDownBrush}" VerticalAlignment="Center" />
+                        <TextBlock Style="{StaticResource PrimaryValue}" FontSize="25" Margin="8,0,0,0" Text="{Binding Download}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <TextBlock Text="&#xE74A;" FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                   Foreground="{StaticResource NetworkUpBrush}" VerticalAlignment="Center" />
+                        <TextBlock Style="{StaticResource MetricValue}" Margin="8,0,0,0" Text="{Binding Upload}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid Grid.Row="3" Margin="0,6,0,0">
+                    <!-- Upload sits behind download on a shared auto-scaled axis -->
+                    <ctl:HistoryGraph Height="50" VerticalAlignment="Bottom" AutoScale="True"
+                                      LineColor="{StaticResource NetworkUpColor}" Series="{Binding UploadSeries}" />
+                    <ctl:HistoryGraph Height="50" VerticalAlignment="Bottom" AutoScale="True"
+                                      LineColor="{StaticResource NetworkDownColor}" Series="{Binding Series}" />
+                </Grid>
+
+                <Grid Grid.Row="4" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding TotalDownloaded, StringFormat='{}{0} in'}" />
+                    <TextBlock Grid.Column="1" Style="{StaticResource MetricLabel}" Text="{Binding TotalUploaded, StringFormat='{}{0} out'}" />
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:TemperatureCardViewModel}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Style="{StaticResource CardTitle}" Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Style="{StaticResource CardSubtitle}" Text="{Binding Subtitle}" Margin="0,2,0,0" />
+
+                <StackPanel Grid.Row="2" Margin="0,6,0,0">
+                    <TextBlock Style="{StaticResource PrimaryValue}" Text="{Binding PrimaryValue}" />
+                    <TextBlock Style="{StaticResource MetricLabel}" Text="{Binding HottestName}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <ScrollViewer Grid.Row="3" Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Sensors}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource MetricLabel}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource MetricValue}" FontSize="12" Text="{Binding Value}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer Padding="0,0,10,0">
+        <ItemsControl ItemsSource="{Binding Cards}" Margin="0,0,4,16">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <!-- One panel for every card, so they reflow together as the window resizes. -->
+                    <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemContainerStyle>
+                <Style TargetType="ContentPresenter">
+                    <Setter Property="Margin" Value="0,0,12,12" />
+                </Style>
+            </ItemsControl.ItemContainerStyle>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource Card}" Width="336" Height="208">
+                        <!-- Resolves to the per-type template declared above. -->
+                        <ContentPresenter Content="{Binding}" />
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </ScrollViewer>
+</UserControl>
